@@ -1,17 +1,9 @@
 INPUT_FILE = 'web_clients_correct.csv'
 OUTPUT_FILE = 'web_clients_description.txt'
 
-GENDER_MAP = {
-    'female': 'женского пола',
-    'male': 'мужского пола'
-}
-
-VERB_MAP = {
-    'female': 'совершила',
-    'male': 'совершил'
-}
-
-DEVICE_ADJECTIVE_MAP = {
+GENDER_MAP = {'female': 'женского пола', 'male': 'мужского пола'}
+VERB_MAP = {'female': 'совершила', 'male': 'совершил'}
+DEVICE_MAP = {
     'mobile': 'мобильного',
     'tablet': 'планшетного',
     'desktop': 'настольного',
@@ -19,113 +11,65 @@ DEVICE_ADJECTIVE_MAP = {
 }
 
 
-def read_file(filepath):
-    try:
-        with open(filepath, 'r', encoding='utf-8') as f:
-            lines = f.readlines()
-        return [line.strip() for line in lines if line.strip()]
-    except FileNotFoundError:
-        return []
-
-
 def parse_csv_line(line):
-    result = []
-    current_val = []
+    fields = []
+    current = []
     in_quotes = False
     i = 0
-
     while i < len(line):
         char = line[i]
-
-        if in_quotes:
-            if char == '"':
-                if i + 1 < len(line) and line[i + 1] == '"':
-                    current_val.append('"')
-                    i += 1
-                else:
-                    in_quotes = False
+        if char == '"':
+            if in_quotes and i + 1 < len(line) and line[i + 1] == '"':
+                current.append('"')
+                i += 1
             else:
-                current_val.append(char)
+                in_quotes = not in_quotes
+        elif char == ',' and not in_quotes:
+            fields.append("".join(current).strip())
+            current = []
         else:
-            if char == '"':
-                in_quotes = True
-            elif char == ',':
-                result.append("".join(current_val))
-                current_val = []
-            else:
-                current_val.append(char)
+            current.append(char)
         i += 1
+    fields.append("".join(current).strip())
+    return fields
 
-    result.append("".join(current_val))
-    return result
 
-
-def transform_data(raw_data):
+def process_data():
     try:
-        name = raw_data[0]
-        device_key = raw_data[1]
-        browser = raw_data[2]
-        sex_key = raw_data[3]
-        age = raw_data[4]
-        bill = raw_data[5]
-        region = raw_data[6]
-
-        gender_text = GENDER_MAP.get(sex_key, sex_key)
-        verb = VERB_MAP.get(sex_key, 'совершил(а)')
-        device_text = DEVICE_ADJECTIVE_MAP.get(device_key, device_key)
-
-        return {
-            'name': name,
-            'gender_text': gender_text,
-            'verb': verb,
-            'age': age,
-            'bill': bill,
-            'device_text': device_text,
-            'browser': browser,
-            'region': region
-        }
-    except IndexError:
-        return None
-
-
-def generate_description(client_dict):
-    template = (
-        "Пользователь {name} {gender_text}, {age} лет "
-        "{verb} покупку на {bill} у.е. с {device_text} браузера {browser}. "
-        "Регион, из которого совершалась покупка: {region}."
-    )
-    return template.format(**client_dict)
-
-
-def save_to_file(filepath, lines):
-    with open(filepath, 'w', encoding='utf-8') as f:
-        for line in lines:
-            f.write(line + '\n')
-
-
-def main():
-    raw_lines = read_file(INPUT_FILE)
-
-    if not raw_lines:
+        with open(INPUT_FILE, 'r', encoding='utf-8-sig') as f:
+            lines = f.readlines()
+    except FileNotFoundError:
         return
 
-    data_lines = raw_lines[1:]
-    processed_descriptions = []
+    if not lines:
+        return
 
-    for line in data_lines:
-        parsed_fields = parse_csv_line(line)
-
-        if len(parsed_fields) < 7:
+    results = []
+    for line in lines[1:]:
+        line = line.strip()
+        if not line:
             continue
 
-        client_data = transform_data(parsed_fields)
+        f = parse_csv_line(line)
+        if len(f) >= 6:
+            name = f[0]
+            dev = f[1]
+            bro = f[2]
+            sex = f[3]
+            age = f[4]
+            bill = f[5]
+            reg = f[6] if len(f) > 6 and f[6] != '-' else "неизвестный регион"
 
-        if client_data:
-            description = generate_description(client_data)
-            processed_descriptions.append(description)
+            g_txt = GENDER_MAP.get(sex, sex)
+            v_txt = VERB_MAP.get(sex, "совершил(а)")
+            d_txt = DEVICE_MAP.get(dev, dev)
 
-    save_to_file(OUTPUT_FILE, processed_descriptions)
+            res = (f"Пользователь {name} {g_txt}, {age} лет {v_txt} покупку на {bill} у.е. "
+                   f"с {d_txt} браузера {bro}. Регион, из которого совершалась покупка: {reg}.")
+            results.append(res)
+
+    with open(OUTPUT_FILE, 'w', encoding='utf-8') as out:
+        out.write("\n".join(results))
 
 
-if name == "main":
-    main()
+process_data()
